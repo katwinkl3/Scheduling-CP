@@ -11,7 +11,6 @@ int: max_time = 10;
 var 1..max_time: makespan;
 enum actors = {a1, a2, a3}; % use dzn file
 enum messages = {m1, m2, m3,m4,m5}; % dzn - symbolic execution wp for sdf
-enum messages_with_null = C(messages) ++ {Null};
 array[messages] of int: dependencies = [0,1,2,3,4]; % dzn
 array[messages] of int: src = [1,2,3,3,3]; % dzn
 array[messages] of int: dst = [2,3,1,1,1]; % dzn
@@ -54,10 +53,7 @@ constraint forall (m in messages)(
 
 %%% Model Constraints %%%
 
-% 1. Each actor a unique mapping
-constraint alldifferent([mapping(mapx[a],mapy[a]) | a in actors]);
-
-% 2. Messages must reach destination
+% 1. Messages must reach destination
 constraint forall(m in messages)(
   sum([route_s[m,t] - route_n[m,t] | t in 1..max_time]) = mapy[dest(m)] - mapy[source(m)]
 );
@@ -65,7 +61,7 @@ constraint forall(m in messages)(
   sum([route_e[m,t] - route_w[m,t] | t in 1..max_time]) = mapx[dest(m)] - mapx[source(m)]
 );
 
-% 3. Messages stay in range of NoC
+% 2. Messages stay in range of NoC
 constraint forall(m in messages)(
   forall(curr_t in 1..max_time)(
     sum([route_s[m,t] - route_n[m,t] | t in 1..curr_t]) + mapy[source(m)] > 0 /\ sum([route_s[m,t] - route_n[m,t] | t in 1..curr_t]) + mapy[source(m)] <= noc
@@ -77,19 +73,15 @@ constraint forall(m in messages)(
   )
 );
 
-% 4. Schedule makespan is the largest end 
-constraint forall (m in messages)(
-  makespan >= ends[m]
-);
-
-% 5. Messages only move in one direction
+% 2.5. Messages only move in one direction
 constraint forall (m in messages)(
   forall (t in 1..max_time)(
     route_n[m,t]+route_s[m,t]+route_e[m,t]+route_w[m,t] <= 1
   )
 );
 
-% 6. Bufferless NoC
+
+% 3. Bufferless NoC
 constraint forall (m in messages)(
   forall (t in 1..max_time)(
     forall(t1 in 1..max_time where t1 > t)(
@@ -100,23 +92,28 @@ constraint forall (m in messages)(
   )
 );
 
-% 7. Each actor may send at most one message for each time
+% 4. Each actor may send at most one message for each time
 constraint forall (a in actors)(
   alldifferent([starts[m] | m in messages where source(m) = a])
 );
 
-% 8. Messages are sent either after the end of previous messages using the same actor or after the start of non-related actors
+% 5. Schedule makespan is the largest end 
+constraint forall (m in messages)(
+  makespan >= ends[m]
+);
+
+% 6. Messages are sent either after the end of previous messages using the same actor or after the start of non-related actors
 constraint forall (m in messages)(
   starts[m] > if dependencies[m] > 0 then ends[messages[dependencies[m]]]+consume_time else 1 endif % >1 to account for pe->router time, > end+delay to account for router->pe time
 );
 
-% 9. Firing time follows TDMA
+% 7. Firing time follows TDMA
 constraint forall (m in messages)(
   (starts[m]-1) mod tdma_max = tdma_table[mapping(mapx[source(m)],mapy[source(m)]), mapping(mapx[dest(m)],mapy[dest(m)])]
 );
 
 
-% 10. No Collision on NoC structure
+% 8. No Collision on NoC structure
 constraint forall (t in 1..max_time-1)(
   forall (m_prev in messages)(
     forall (m_next in messages where m_next > m_prev)(
@@ -161,6 +158,9 @@ constraint forall (t in 1..max_time-1)(
     )
   )
 );
+
+% 9. Each actor a unique mapping
+constraint alldifferent([mapping(mapx[a],mapy[a]) | a in actors]);
 
 %%% Objective %%%
 solve minimize makespan;
