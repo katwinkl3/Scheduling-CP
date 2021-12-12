@@ -4,9 +4,9 @@ import sys
 import subprocess
 import warnings
 
-file = sys.argv[1]
+file, df_file = sys.argv[1], sys.argv[2]
 fbf= ''
-cmd="./Debug/bin/kiter -f ./benchmarks/ascenttestbench/one_modem.xml -a createNoC -a randomMapping -a randomRouting -a SymbolicExecutionWP"
+cmd="./Debug/bin/kiter -f " + df_file + " -a createNoC -a randomMapping -a randomRouting -a SymbolicExecutionWP"
 out = subprocess.check_output(cmd, shell=True).decode("utf-8")
 
 with open(file) as f:
