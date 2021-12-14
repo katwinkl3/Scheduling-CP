@@ -4,28 +4,49 @@ include "cumulative.mzn";
 
 %%% Model Parameters and Decision Variables %%%
 
-int: noc = 3;
+int: noc = 4;
 int: process_time = 1;
 int: consume_time = 0; % assume no delay between consuming and producing tokens
-int: max_time = 10;
+int: max_time = 20;
 var 1..max_time: makespan;
-enum actors = {a1, a2, a3}; % use dzn file
-enum messages = {m1, m2, m3,m4,m5}; % dzn - symbolic execution wp for sdf
-array[messages] of int: dependencies = [0,1,2,3,4]; % dzn
-array[messages] of int: src = [1,2,3,3,3]; % dzn
-array[messages] of int: dst = [2,3,1,1,1]; % dzn
-int: tdma_max = 2; % dzn
-array[1..9, 1..9] of int: tdma_table = array2d(1..9, 1..9, 
-      [1,1,1,1,1,1,1,1,1,
-      1,1,1,1,1,1,1,1,1,
-      1,1,1,1,1,1,1,1,1,
-      1,1,1,1,1,1,1,1,1,
-      1,1,1,1,1,1,1,1,1,
-      1,1,1,1,1,1,1,1,1,
-      1,1,1,1,1,1,1,1,1,
-      1,1,1,1,1,1,1,1,1,
-      1,1,1,1,1,1,1,1,1]
-); % dzn
+
+% Data file key in
+enum actors;
+enum messages;
+array[messages, messages] of int: dependencies;
+array[messages] of int: src;
+array[messages] of int: dst;
+int: tdma_max;
+array[1..noc*noc, 1..noc*noc] of int: tdma_table;
+
+% Manual key in
+% enum actors = {a1, a2, a3}; 
+% enum messages = {m1, m2, m3,m4,m5}; 
+% int: message_len = length(messages);
+% array[messages, messages] of int: dependencies = array2d(messages, messages,
+%       [0, 0, 0, 0, 0,
+%       1, 0, 0, 0, 0,
+%       0, 1, 0, 0, 0,
+%       0, 0, 1, 0, 0,
+%       0, 0, 0, 1, 0]
+%       % dp[m_next r][m_prev c] = 1 if next depends on prev
+% );
+% % array[messages] of int: dependencies = [0,1,2,3,4];
+% array[messages] of int: src = [1,2,3,3,3]; 
+% array[messages] of int: dst = [2,3,1,1,1];
+% int: tdma_max = 2;
+% array[1..9, 1..9] of int: tdma_table = array2d(1..9, 1..9, 
+%       [1,1,1,1,1,1,1,1,1,
+%       1,1,1,1,1,1,1,1,1,
+%       1,1,1,1,1,1,1,1,1,
+%       1,1,1,1,1,1,1,1,1,
+%       1,1,1,1,1,1,1,1,1,
+%       1,1,1,1,1,1,1,1,1,
+%       1,1,1,1,1,1,1,1,1,
+%       1,1,1,1,1,1,1,1,1,
+%       1,1,1,1,1,1,1,1,1]
+% ); 
+
 array[messages, 1..max_time] of var 0..1: route_n;
 array[messages, 1..max_time] of var 0..1: route_s;
 array[messages, 1..max_time] of var 0..1: route_e;
@@ -103,8 +124,12 @@ constraint forall (m in messages)(
 );
 
 % 6. Messages are sent either after the end of previous messages using the same actor or after the start of non-related actors
-constraint forall (m in messages)(
-  starts[m] > if dependencies[m] > 0 then ends[messages[dependencies[m]]]+consume_time else 1 endif % >1 to account for pe->router time, > end+delay to account for router->pe time
+constraint forall (m_next in messages)(
+  forall (m_prev in messages)(
+    starts[m_next] > if dependencies[m_next,m_prev] = 1 then ends[m_prev]+consume_time else 1 endif
+%     starts[m] > if dependencies[m] > 0 then ends[messages[dependencies[m]]]+consume_time else 1 endif 
+% >1 to account for pe->router time, > end+delay to account for router->pe time
+    )
 );
 
 % 7. Firing time follows TDMA
