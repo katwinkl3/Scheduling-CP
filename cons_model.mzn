@@ -7,8 +7,6 @@ include "cumulative.mzn";
 int: noc = 4;
 int: process_time = 1;
 int: consume_time = 0; % assume no delay between consuming and producing tokens
-int: max_time = 20;
-var 1..max_time: makespan;
 
 % Data file key in
 enum actors;
@@ -16,8 +14,11 @@ enum messages;
 array[messages, messages] of int: dependencies;
 array[messages] of int: src;
 array[messages] of int: dst;
+array[messages] of int: durations;
 int: tdma_max;
 array[1..noc*noc, 1..noc*noc] of int: tdma_table;
+int: max_time;
+var 1..max_time: makespan;
 
 % Manual key in
 % enum actors = {a1, a2, a3}; 
@@ -123,10 +124,10 @@ constraint forall (m in messages)(
   makespan >= ends[m]
 );
 
-% 6. Messages are sent either after the end of previous messages using the same actor or after the start of non-related actors
+% 6. Messages are sent either after the end of previous messages (+exec duration of curr actor) using the same actor or after the start of non-related actors
 constraint forall (m_next in messages)(
   forall (m_prev in messages)(
-    starts[m_next] > if dependencies[m_next,m_prev] = 1 then ends[m_prev]+consume_time else 1 endif
+    starts[m_next] > if dependencies[m_next,m_prev] = 1 then ends[m_prev]+durations[m_next]+consume_time else 1 endif
 %     starts[m] > if dependencies[m] > 0 then ends[messages[dependencies[m]]]+consume_time else 1 endif 
 % >1 to account for pe->router time, > end+delay to account for router->pe time
     )
